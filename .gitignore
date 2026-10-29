@@ -1,0 +1,44 @@
+# Environment & Secrets (NEVER commit bot tokens!)
+.env
+.env.local
+*.env
+!.env.example
+
+# Process locks & temporary runtime files
+*.lock
+bot.lock
+
+# SQLite Database & Caches
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+bot_database.db*
+
+# Temporary downloaded media
+temp_media/*
+!temp_media/.gitkeep
+
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
