@@ -102,7 +102,7 @@ async def keep_alive_ping():
         await asyncio.sleep(600)
 
 async def post_init(application):
-    """Initializes the database, caches, and web server on bot startup."""
+    """Initializes the database, caches, commands, and web server on bot startup."""
     await cache_service.init_db()
     bot_info = await application.bot.get_me()
     logger.info(f"Bot successfully started as @{bot_info.username} (ID: {bot_info.id})")
@@ -111,6 +111,30 @@ async def post_init(application):
     print(f"  🤖 Bot Username: @{bot_info.username}")
     print(f"  🚀 Ultra-fast concurrent updates enabled!")
     print(f"=======================================================\n")
+
+    # Configure Telegram auto-greeting & description shown when opening bot
+    try:
+        from telegram import BotCommand
+        await application.bot.set_my_description(
+            "👋 Welcome to Fetchly Pro Video Downloader!\n\n"
+            "⚡ Ultra-fast watermark-free downloader for:\n"
+            "• TikTok (HD Videos & Photo Slides)\n"
+            "• Instagram (Reels & Posts)\n"
+            "• YouTube (Shorts & Videos)\n"
+            "• Twitter / X, Facebook & more!\n\n"
+            "🚀 Tap START below to begin downloading!"
+        )
+        await application.bot.set_my_short_description(
+            "⚡ Ultra-fast watermark-free video & audio downloader bot"
+        )
+        await application.bot.set_my_commands([
+            BotCommand("start", "🚀 Start bot & open menu"),
+            BotCommand("help", "💡 How to download & tips"),
+            BotCommand("ping", "⚡ Check bot response speed"),
+            BotCommand("stats", "📊 Bot performance & statistics"),
+        ])
+    except Exception as e:
+        logger.warning(f"Could not update bot descriptions/commands: {e}")
 
     # Start Render Free Tier web server and anti-sleep keep-alive
     await start_dummy_web_server()

@@ -44,8 +44,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = tiktok_service.extract_url(text) or ytdlp_service.extract_url(text)
     if not url:
         if update.message.chat.type == "private":
+            greetings = {"hi", "hello", "hey", "hola", "start", "menu", "help", "halo", "yo", "greeting"}
+            if text.lower().strip() in greetings:
+                from handlers.commands import start_command
+                await start_command(update, context)
+                return
+
+            first_name = user.first_name if user else "there"
+            keyboard = [
+                [
+                    InlineKeyboardButton("📖 How to Use", callback_data="help_menu"),
+                    InlineKeyboardButton("📊 Bot Stats", callback_data="stats_menu")
+                ]
+            ]
             await update.message.reply_text(
-                "ℹ️ Please send a valid media link from TikTok, Instagram, YouTube Shorts, Twitter/X, or Facebook."
+                f"👋 <b>Hi {first_name}!</b> Ready to download?\n\n"
+                "Just send or paste any video link directly into this chat:\n"
+                "• <b>TikTok</b> (HD Videos & Photo Slides)\n"
+                "• <b>Instagram</b> (Reels, Posts & Stories)\n"
+                "• <b>YouTube</b> (Shorts & Videos)\n"
+                "• <b>Twitter/X & Facebook</b>\n\n"
+                "⚡ <i>I will download and deliver it in seconds!</i>",
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
         return
 
