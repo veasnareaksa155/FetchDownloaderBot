@@ -13,6 +13,8 @@ from telegram.ext import (
     ContextTypes
 )
 from telegram.request import HTTPXRequest
+import aiohttp
+from aiohttp import web
 
 # Reconfigure Windows console for UTF-8 emoji support
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
@@ -29,15 +31,22 @@ from handlers import (
     handle_message
 )
 
-# Prevent duplicate bot instances (fixes Telegram Conflict error)
+# Prevent duplicate bot instances (cross-platform Windows & Linux)
 _lock_file = None
 def ensure_single_instance():
     global _lock_file
     lock_path = Path(__file__).resolve().parent / "bot.lock"
     try:
         _lock_file = open(lock_path, "w")
-        import msvcrt
-        msvcrt.locking(_lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+        try:
+            import msvcrt
+            msvcrt.locking(_lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+        except ImportError:
+            try:
+                import fcntl
+                fcntl.flock(_lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except Exception:
+                pass
     except (IOError, OSError):
         print("\n" + "=" * 60)
         print(" [!] CONFLICT PREVENTED: Bot is ALREADY running in another window!")
@@ -55,8 +64,45 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("DownloaderBot")
 
+async def handle_health_check(request):
+    """Health check endpoint for Render.com Free Tier."""
+    return web.Response(text="⚡ Fetchly Downloader Bot is Running 24/7!", content_type="text/plain")
+
+async def start_dummy_web_server():
+    """Starts a lightweight web server on Render's assigned PORT for 100% Free Web Service."""
+    port_str = os.getenv("PORT")
+    if not port_str:
+        return
+    try:
+        port = int(port_str)
+        web_app = web.Application()
+        web_app.router.add_get("/", handle_health_check)
+        web_app.router.add_get("/health", handle_health_check)
+        runner = web.AppRunner(web_app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+        logger.info(f"Render Free Tier Web Server active on port {port}")
+    except Exception as e:
+        logger.warning(f"Could not start Render health server: {e}")
+
+async def keep_alive_ping():
+    """Self-pings RENDER_EXTERNAL_URL every 10 minutes to prevent Render free tier from sleeping."""
+    render_url = os.getenv("RENDER_EXTERNAL_URL")
+    if not render_url:
+        return
+    await asyncio.sleep(60)
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{render_url}/health", timeout=15) as resp:
+                    logger.info(f"Keep-alive self-ping status: {resp.status}")
+        except Exception as e:
+            logger.debug(f"Keep-alive notice: {e}")
+        await asyncio.sleep(600)
+
 async def post_init(application):
-    """Initializes the database and caches on bot startup."""
+    """Initializes the database, caches, and web server on bot startup."""
     await cache_service.init_db()
     bot_info = await application.bot.get_me()
     logger.info(f"Bot successfully started as @{bot_info.username} (ID: {bot_info.id})")
@@ -65,6 +111,10 @@ async def post_init(application):
     print(f"  🤖 Bot Username: @{bot_info.username}")
     print(f"  🚀 Ultra-fast concurrent updates enabled!")
     print(f"=======================================================\n")
+
+    # Start Render Free Tier web server and anti-sleep keep-alive
+    await start_dummy_web_server()
+    asyncio.create_task(keep_alive_ping())
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """Logs unexpected errors."""
@@ -104,7 +154,7 @@ def main():
         ApplicationBuilder()
         .token(BOT_TOKEN)
         .request(request_client)
-        .concurrent_updates(True)  # Process all commands and messages concurrently!
+        .concurrent_updates(True)
         .post_init(post_init)
         .build()
     )
@@ -127,7 +177,7 @@ def main():
     # Start Polling
     logger.info("Starting bot polling with concurrent update pipeline...")
     app.run_polling(
-        poll_interval=0.0,  # Zero delay between poll cycles for maximum responsiveness
+        poll_interval=0.0,
         timeout=10,
         allowed_updates=Update.ALL_TYPES,
         drop_pending_updates=True
